@@ -1,0 +1,31 @@
+# Database Configuration
+DATABASE_URL=sqlite:///./data_labeling.db
+# For PostgreSQL: postgresql://username:password@localhost:5432/dbname
+
+# LLM Configuration (Choose one provider)
+LLM_PROVIDER=local  # Options: local, huggingface, ollama, free_api
+
+# Local Model Settings (Free - runs on your computer)
+LOCAL_MODEL_NAME=distilbert-base-uncased
+USE_GPU=False
+
+# Hugging Face Settings (Free - optional API key for private models)
+HUGGINGFACE_API_KEY=your_huggingface_api_key_here  # Optional
+HUGGINGFACE_MODEL=distilbert-base-uncased
+
+# Ollama Settings (Free - if you have Ollama installed locally)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
+
+# Free API Settings (Free - Hugging Face inference API)
+FREE_API_URL=https://api-inference.huggingface.co/models/
+FREE_API_MODEL=distilbert-base-uncased
+
+# App Configuration
+DEBUG=True
+HOST=0.0.0.0
+PORT=8000
+
+# Labeling Configuration
+MIN_CONFIDENCE_THRESHOLD=0.8
+MAX_BATCH_SIZE=100 

@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Data Labeling Assistant{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-chart-bar me-2"></i>
+        Statistics & Analytics
+    </h1>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    {{ error }}
+</div>
+{% endif %}
+
+<!-- Overview Statistics -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total Texts
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ stats.total_texts or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-file-text fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Auto-Labeled
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ stats.auto_labeled or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-robot fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Human Reviewed
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ stats.human_reviewed or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-user-check fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Avg Confidence
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ "%.1f"|format((stats.average_confidence or 0) * 100) }}%
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review Actions Breakdown -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tasks me-2"></i>
+                    Review Actions Breakdown
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="border rounded p-3 bg-success bg-opacity-10">
+                            <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
+                            <h4 class="text-success">{{ stats.review_actions.approve or 0 }}</h4>
+                            <p class="text-muted mb-0">Approved</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="border rounded p-3 bg-danger bg-opacity-10">
+                            <i class="fas fa-times-circle fa-3x text-danger mb-2"></i>
+                            <h4 class="text-danger">{{ stats.review_actions.reject or 0 }}</h4>
+                            <p class="text-muted mb-0">Rejected</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="border rounded p-3 bg-warning bg-opacity-10">
+                            <i class="fas fa-edit fa-3x text-warning mb-2"></i>
+                            <h4 class="text-warning">{{ stats.review_actions.modify or 0 }}</h4>
+                            <p class="text-muted mb-0">Modified</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Category Distribution -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Category Distribution
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if category_distribution %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Count</th>
+                                <th>Percentage</th>
+                                <th>Average Confidence</th>
+                                <th>Distribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in category_distribution %}
+                            {% set percentage = (category.count / stats.total_texts * 100) if stats.total_texts > 0 else 0 %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">{{ category.name }}</span>
+                                </td>
+                                <td>{{ category.count }}</td>
+                                <td>{{ "%.1f"|format(percentage) }}%</td>
+                                <td>
+                                    {% if category.average_confidence >= 0.8 %}
+                                        <span class="confidence-high">{{ "%.1f"|format(category.average_confidence * 100) }}%</span>
+                                    {% elif category.average_confidence >= 0.6 %}
+                                        <span class="confidence-medium">{{ "%.1f"|format(category.average_confidence * 100) }}%</span>
+                                    {% else %}
+                                        <span class="confidence-low">{{ "%.1f"|format(category.average_confidence * 100) }}%</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ percentage }}%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+                                             aria-valuenow="{{ percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                            {{ "%.1f"|format(percentage) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+                    <h5>No Data Available</h5>
+                    <p class="text-muted">Start labeling texts to see category distribution statistics.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Metrics -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    Performance Metrics
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Labeling Efficiency</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Auto-labeling Rate</label>
+                            <div class="progress">
+                                {% set auto_rate = (stats.auto_labeled / stats.total_texts * 100) if stats.total_texts > 0 else 0 %}
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                     style="width: {{ auto_rate }}%" aria-valuenow="{{ auto_rate }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ "%.1f"|format(auto_rate) }}%
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Human Review Rate</label>
+                            <div class="progress">
+                                {% set review_rate = (stats.human_reviewed / stats.total_texts * 100) if stats.total_texts > 0 else 0 %}
+                                <div class="progress-bar bg-info" role="progressbar" 
+                                     style="width: {{ review_rate }}%" aria-valuenow="{{ review_rate }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ "%.1f"|format(review_rate) }}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>Quality Metrics</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Average Confidence Score</label>
+                            <div class="progress">
+                                {% set conf_score = (stats.average_confidence or 0) * 100 %}
+                                <div class="progress-bar bg-warning" role="progressbar" 
+                                     style="width: {{ conf_score }}%" aria-valuenow="{{ conf_score }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ "%.1f"|format(conf_score) }}%
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Review Coverage</label>
+                            <div class="progress">
+                                {% set coverage = (stats.human_reviewed / (stats.auto_labeled + stats.human_reviewed) * 100) if (stats.auto_labeled + stats.human_reviewed) > 0 else 0 %}
+                                <div class="progress-bar bg-primary" role="progressbar" 
+                                     style="width: {{ coverage }}%" aria-valuenow="{{ coverage }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ "%.1f"|format(coverage) }}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

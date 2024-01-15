@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Review Labels - Data Labeling Assistant{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-eye me-2"></i>
+        Review Labels
+    </h1>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    {{ error }}
+</div>
+{% endif %}
+
+<!-- Review Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-user me-2"></i>
+                    Reviewer Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="reviewerName" class="form-label">Your Name</label>
+                            <input type="text" class="form-control" id="reviewerName" 
+                                   placeholder="Enter your name for tracking reviews" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="confidenceThreshold" class="form-label">Confidence Threshold</label>
+                            <select class="form-select" id="confidenceThreshold">
+                                <option value="0.5">50% - Review more labels</option>
+                                <option value="0.7" selected>70% - Balanced approach</option>
+                                <option value="0.8">80% - Review fewer labels</option>
+                                <option value="0.9">90% - Review only low confidence</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="loadPendingReviews()">
+                    <i class="fas fa-sync-alt me-2"></i>
+                    Load Pending Reviews
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Reviews -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Pending Reviews
+                    <span id="reviewCount" class="badge bg-secondary ms-2">0</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="pendingReviewsContainer">
+                    <div class="text-center py-4">
+                        <i class="fas fa-info-circle fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">Click "Load Pending Reviews" to see texts that need human review.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Review Label</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="reviewModalContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentReviews = [];
+
+$(document).ready(function() {
+    // Load categories for dropdown
+    loadCategories();
+});
+
+function loadCategories() {
+    $.get('/api/categories', function(response) {
+        if (response.success) {
+            window.categories = response.categories;
+        }
+    });
+}
+
+function loadPendingReviews() {
+    const reviewerName = $('#reviewerName').val();
+    const confidenceThreshold = $('#confidenceThreshold').val();
+    
+    if (!reviewerName) {
+        alert('Please enter your name first.');
+        return;
+    }
+    
+    $.get(`/api/reviews/pending?min_confidence=${confidenceThreshold}&limit=50`, function(response) {
+        if (response.success) {
+            currentReviews = response.reviews;
+            displayPendingReviews(currentReviews);
+        } else {
+            alert('Error loading reviews: ' + response.message);
+        }
+    }).fail(function(xhr) {
+        alert('Error loading reviews: ' + xhr.responseText);
+    });
+}
+
+function displayPendingReviews(reviews) {
+    const container = $('#pendingReviewsContainer');
+    
+    if (reviews.length === 0) {
+        container.html(`
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle fa-2x text-success mb-3"></i>
+                <h5>No Pending Reviews</h5>
+                <p class="text-muted">All labels meet the confidence threshold or have been reviewed.</p>
+            </div>
+        `);
+        $('#reviewCount').text('0');
+        return;
+    }
+    
+    let html = '<div class="table-responsive"><table class="table table-hover">';
+    html += '<thead><tr><th>Text</th><th>Category</th><th>Confidence</th><th>Source</th><th>Action</th></tr></thead><tbody>';
+    
+    reviews.forEach((review, index) => {
+        const confidenceClass = review.confidence >= 0.8 ? 'confidence-high' : 
+                              review.confidence >= 0.6 ? 'confidence-medium' : 'confidence-low';
+        
+        html += `<tr>
+            <td>
+                <div class="text-truncate" style="max-width: 300px;" title="${review.text_content}">
+                    ${review.text_content}
+                </div>
+            </td>
+            <td>
+                <span class="badge bg-secondary">${review.category}</span>
+            </td>
+            <td>
+                <span class="${confidenceClass}">${(review.confidence * 100).toFixed(1)}%</span>
+            </td>
+            <td>
+                <small class="text-muted">${review.source || 'N/A'}</small>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="openReviewModal(${index})">
+                    <i class="fas fa-eye me-1"></i>
+                    Review
+                </button>
+            </td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    container.html(html);
+    $('#reviewCount').text(reviews.length);
+}
+
+function openReviewModal(reviewIndex) {
+    const review = currentReviews[reviewIndex];
+    const modal = $('#reviewModal');
+    const content = $('#reviewModalContent');
+    
+    let html = `
+        <div class="mb-3">
+            <label class="form-label"><strong>Text to Review:</strong></label>
+            <div class="border rounded p-3 bg-light">${review.text_content}</div>
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label"><strong>Current Category:</strong></label>
+                <div class="border rounded p-2 bg-light">${review.category}</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label"><strong>Confidence:</strong></label>
+                <div class="border rounded p-2 bg-light">${(review.confidence * 100).toFixed(1)}%</div>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label"><strong>LLM Explanation:</strong></label>
+            <div class="border rounded p-2 bg-light">${review.explanation || 'No explanation provided'}</div>
+        </div>
+        
+        <hr>
+        
+        <div class="mb-3">
+            <label class="form-label"><strong>Review Action:</strong></label>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="reviewAction" id="actionApprove" value="approve" checked>
+                <label class="btn btn-outline-success" for="actionApprove">
+                    <i class="fas fa-check me-1"></i>Approve
+                </label>
+                
+                <input type="radio" class="btn-check" name="reviewAction" id="actionReject" value="reject">
+                <label class="btn btn-outline-danger" for="actionReject">
+                    <i class="fas fa-times me-1"></i>Reject
+                </label>
+                
+                <input type="radio" class="btn-check" name="reviewAction" id="actionModify" value="modify">
+                <label class="btn btn-outline-warning" for="actionModify">
+                    <i class="fas fa-edit me-1"></i>Modify
+                </label>
+            </div>
+        </div>
+        
+        <div id="newCategorySection" class="mb-3" style="display: none;">
+            <label for="newCategory" class="form-label"><strong>New Category:</strong></label>
+            <select class="form-select" id="newCategory">
+                ${window.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+            </select>
+        </div>
+        
+        <div class="mb-3">
+            <label for="reviewComments" class="form-label"><strong>Comments (Optional):</strong></label>
+            <textarea class="form-control" id="reviewComments" rows="3" 
+                      placeholder="Add any comments about your decision..."></textarea>
+        </div>
+        
+        <div class="text-end">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="submitReview(${review.label_id})">
+                <i class="fas fa-save me-1"></i>Submit Review
+            </button>
+        </div>
+    `;
+    
+    content.html(html);
+    
+    // Show/hide new category section based on action
+    $('input[name="reviewAction"]').change(function() {
+        const action = $(this).val();
+        if (action === 'reject' || action === 'modify') {
+            $('#newCategorySection').show();
+        } else {
+            $('#newCategorySection').hide();
+        }
+    });
+    
+    modal.modal('show');
+}
+
+function submitReview(labelId) {
+    const action = $('input[name="reviewAction"]:checked').val();
+    const reviewerName = $('#reviewerName').val();
+    const comments = $('#reviewComments').val();
+    
+    let url, formData;
+    
+    if (action === 'approve') {
+        url = '/api/reviews/approve';
+        formData = new FormData();
+        formData.append('label_id', labelId);
+        formData.append('reviewer_name', reviewerName);
+        if (comments) formData.append('comments', comments);
+    } else if (action === 'reject' || action === 'modify') {
+        const newCategory = $('#newCategory').val();
+        if (!newCategory) {
+            alert('Please select a new category.');
+            return;
+        }
+        
+        if (action === 'reject') {
+            url = '/api/reviews/reject';
+        } else {
+            url = '/api/reviews/modify';
+        }
+        
+        formData = new FormData();
+        formData.append('label_id', labelId);
+        formData.append('reviewer_name', reviewerName);
+        formData.append('new_category', newCategory);
+        if (comments) formData.append('comments', comments);
+    }
+    
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                $('#reviewModal').modal('hide');
+                alert('Review submitted successfully!');
+                loadPendingReviews(); // Refresh the list
+            } else {
+                alert('Error submitting review: ' + response.message);
+            }
+        },
+        error: function(xhr) {
+            alert('Error submitting review: ' + xhr.responseText);
+        }
+    });
+}
+</script>
+{% endblock %} 
