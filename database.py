@@ -2,9 +2,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import Config
 
-engine = create_engine(Config.DATABASE_URL)
+# Create database engine
+engine = create_engine(
+    Config.DATABASE_URL,
+    connect_args={"check_same_thread": False} if "sqlite" in Config.DATABASE_URL else {}
+)
+
+# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Create all tables
+def create_tables():
+    from models import Base
+    Base.metadata.create_all(bind=engine)
+
+# Dependency to get database session
 def get_db():
     db = SessionLocal()
     try:
@@ -12,27 +24,22 @@ def get_db():
     finally:
         db.close()
 
-def create_tables():
-    from models import Base
-    Base.metadata.create_all(bind=engine)
-
+# Initialize database with default categories
 def init_database():
     """Initialize database with default data"""
     db = SessionLocal()
     try:
         from models import Category
         
-        # Add default categories
-        default_categories = Config.DEFAULT_CATEGORIES
-        for category_name in default_categories:
-            existing = db.query(Category).filter(Category.name == category_name).first()
-            if not existing:
-                category = Category(name=category_name)
+        # Check if categories already exist
+        existing_categories = db.query(Category).count()
+        if existing_categories == 0:
+            # Add default categories
+            for cat_name in Config.DEFAULT_CATEGORIES:
+                category = Category(name=cat_name, description=f"Default category: {cat_name}")
                 db.add(category)
-        
-        db.commit()
-        print("Database initialized with default categories")
-        
+            db.commit()
+            print("Default categories initialized")
     except Exception as e:
         print(f"Error initializing database: {e}")
         db.rollback()

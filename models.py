@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -12,6 +12,7 @@ class TextData(Base):
     text_content = Column(Text, nullable=False)
     source = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     labels = relationship("Label", back_populates="text_data")
 
@@ -19,9 +20,12 @@ class Label(Base):
     __tablename__ = "labels"
     
     id = Column(Integer, primary_key=True, index=True)
-    text_data_id = Column(Integer, ForeignKey("text_data.id"))
+    text_data_id = Column(Integer, ForeignKey("text_data.id"), nullable=False)
     category = Column(String(100), nullable=False)
     confidence = Column(Float, nullable=False)
+    llm_model = Column(String(100), nullable=False)
+    llm_response = Column(JSON, nullable=True)
+    is_auto_generated = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     text_data = relationship("TextData", back_populates="labels")
@@ -31,11 +35,13 @@ class Review(Base):
     __tablename__ = "reviews"
     
     id = Column(Integer, primary_key=True, index=True)
-    label_id = Column(Integer, ForeignKey("labels.id"))
-    action = Column(String(50), nullable=False)  # approve, reject, modify
+    label_id = Column(Integer, ForeignKey("labels.id"), nullable=False)
     reviewer_name = Column(String(100), nullable=False)
+    action = Column(String(50), nullable=False)  # approve, reject, modify
+    original_category = Column(String(100), nullable=True)
+    new_category = Column(String(100), nullable=True)
     comments = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_at = Column(DateTime, default=datetime.utcnow)
     
     label = relationship("Label", back_populates="reviews")
 
@@ -44,5 +50,6 @@ class Category(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow) 
