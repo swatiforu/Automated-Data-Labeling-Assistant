@@ -7,9 +7,11 @@ from typing import List, Optional
 import uvicorn
 
 from database import get_db, create_tables, init_database
+from llm_service import LabelingService
+from review_service import ReviewService
 from config import Config
 
-app = FastAPI(title="Data Labeling Assistant", version="1.0.0")
+app = FastAPI(title="Automated Data Labeling Assistant", version="1.0.0")
 
 # Templates
 templates = Jinja2Templates(directory="templates")
@@ -18,14 +20,9 @@ templates = Jinja2Templates(directory="templates")
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     """Main dashboard page"""
     try:
-        # Basic statistics (placeholder)
-        stats = {
-            "total_texts": 0,
-            "auto_labeled": 0,
-            "human_reviewed": 0,
-            "avg_confidence": 0.0
-        }
-        pending_reviews = []
+        review_service = ReviewService(db)
+        stats = review_service.get_review_statistics()
+        pending_reviews = review_service.get_pending_reviews(limit=5)
         
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
@@ -49,8 +46,9 @@ async def label_page(request: Request):
 async def review_page(request: Request, db: Session = Depends(get_db)):
     """Review page"""
     try:
-        pending_reviews = []
-        categories = []
+        review_service = ReviewService(db)
+        pending_reviews = review_service.get_pending_reviews(limit=20)
+        categories = review_service.get_category_distribution()
         
         return templates.TemplateResponse("review.html", {
             "request": request,
@@ -69,13 +67,9 @@ async def review_page(request: Request, db: Session = Depends(get_db)):
 async def statistics_page(request: Request, db: Session = Depends(get_db)):
     """Statistics page"""
     try:
-        stats = {
-            "total_texts": 0,
-            "auto_labeled": 0,
-            "human_reviewed": 0,
-            "avg_confidence": 0.0
-        }
-        category_dist = []
+        review_service = ReviewService(db)
+        stats = review_service.get_review_statistics()
+        category_dist = review_service.get_category_distribution()
         
         return templates.TemplateResponse("statistics.html", {
             "request": request,
@@ -96,41 +90,73 @@ async def label_text(
     source: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    """Label a single text"""
+    """Label a single text using AI"""
     try:
-        # Basic labeling logic (placeholder)
-        category = "positive"  # Simple placeholder
-        confidence = 0.8
+        labeling_service = LabelingService(db)
+        label = labeling_service.label_new_text(text, source)
         
-        return {"success": True, "category": category, "confidence": confidence}
+        return {
+            "success": True,
+            "text_id": label.text_data_id,
+            "label_id": label.id,
+            "category": label.category,
+            "confidence": label.confidence,
+            "explanation": label.llm_response.get("explanation", "") if label.llm_response else ""
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/label/batch")
 async def label_batch(
-    texts: List[str] = Form(...),
-    sources: Optional[List[str]] = Form(None),
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """Label multiple texts in batch"""
+    """Process multiple texts for AI labeling in batch mode"""
     try:
-        if sources is None:
+        # Manually parse form data to handle multiple text inputs
+        form_data = await request.form()
+        
+        # Extract all submitted texts from form data
+        texts = []
+        for key, value in form_data.items():
+            if key == 'texts':
+                texts.append(value)
+        
+        # Extract optional source information for each text
+        sources = []
+        for key, value in form_data.items():
+            if key == 'sources':
+                sources.append(value)
+        
+        # Provide default source values if none specified
+        if not sources:
             sources = [None] * len(texts)
         
+        print(f"Processing {len(texts)} texts: {texts}")
+        
+        # Initialize labeling service and process texts
+        labeling_service = LabelingService(db)
+        labels = labeling_service.label_batch_texts(texts, sources)
+        
+        # Build response with complete label information
         results = []
-        for text, source in zip(texts, sources):
-            # Basic labeling logic (placeholder)
-            category = "positive"  # Simple placeholder
-            confidence = 0.8
-            
+        for label in labels:
+            # Retrieve original text content for display
+            from models import TextData
+            text_data = db.query(TextData).filter(TextData.id == label.text_data_id).first()
             results.append({
-                "text": text,
-                "category": category,
-                "confidence": confidence
+                "text_id": label.text_data_id,
+                "label_id": label.id,
+                "text_content": text_data.text_content if text_data else "Text not found",
+                "category": label.category,
+                "confidence": label.confidence,
+                "explanation": label.llm_response.get("explanation", "") if label.llm_response else ""
             })
         
+        print(f"Processed {len(results)} labels")
         return {"success": True, "labels": results}
     except Exception as e:
+        print(f"Error in batch labeling: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/reviews/pending")
@@ -141,8 +167,83 @@ async def get_pending_reviews(
 ):
     """Get texts that need human review"""
     try:
-        # Placeholder implementation
-        return {"success": True, "reviews": []}
+        review_service = ReviewService(db)
+        reviews = review_service.get_pending_reviews(limit, min_confidence)
+        return {"success": True, "reviews": reviews}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/reviews/approve")
+async def approve_label(
+    label_id: int = Form(...),
+    reviewer_name: str = Form(...),
+    comments: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Approve an AI-generated label"""
+    try:
+        review_service = ReviewService(db)
+        review = review_service.approve_label(label_id, reviewer_name, comments)
+        return {"success": True, "review_id": review.id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/reviews/reject")
+async def reject_label(
+    label_id: int = Form(...),
+    reviewer_name: str = Form(...),
+    new_category: str = Form(...),
+    comments: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Reject an AI-generated label and provide a new category"""
+    try:
+        review_service = ReviewService(db)
+        review = review_service.reject_label(label_id, reviewer_name, new_category, comments)
+        return {"success": True, "review_id": review.id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/reviews/modify")
+async def modify_label(
+    label_id: int = Form(...),
+    reviewer_name: str = Form(...),
+    new_category: str = Form(...),
+    new_confidence: Optional[float] = Form(None),
+    comments: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Modify an AI-generated label"""
+    try:
+        review_service = ReviewService(db)
+        review = review_service.modify_label(label_id, reviewer_name, new_category, new_confidence, comments)
+        return {"success": True, "review_id": review.id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/statistics")
+async def get_statistics(db: Session = Depends(get_db)):
+    """Get review and labeling statistics"""
+    try:
+        review_service = ReviewService(db)
+        stats = review_service.get_review_statistics()
+        category_dist = review_service.get_category_distribution()
+        
+        return {
+            "success": True,
+            "statistics": stats,
+            "category_distribution": category_dist
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/categories")
+async def get_categories(db: Session = Depends(get_db)):
+    """Get available categories"""
+    try:
+        labeling_service = LabelingService(db)
+        categories = labeling_service.get_available_categories()
+        return {"success": True, "categories": categories}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
