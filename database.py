@@ -44,4 +44,32 @@ def init_database():
         print(f"Error initializing database: {e}")
         db.rollback()
     finally:
+        db.close()
+
+def cleanup_database():
+    """Clean up any conflicting or duplicate records"""
+    db = SessionLocal()
+    try:
+        from models import TextData, Label, Review
+        
+        # Check for any orphaned records
+        orphaned_labels = db.query(Label).outerjoin(TextData).filter(TextData.id.is_(None)).all()
+        if orphaned_labels:
+            print(f"Cleaning up {len(orphaned_labels)} orphaned labels")
+            for label in orphaned_labels:
+                db.delete(label)
+        
+        orphaned_reviews = db.query(Review).outerjoin(Label).filter(Label.id.is_(None)).all()
+        if orphaned_reviews:
+            print(f"Cleaning up {len(orphaned_reviews)} orphaned reviews")
+            for review in orphaned_reviews:
+                db.delete(review)
+        
+        db.commit()
+        print("Database cleanup completed")
+        
+    except Exception as e:
+        print(f"Error during database cleanup: {e}")
+        db.rollback()
+    finally:
         db.close() 

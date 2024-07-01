@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import uvicorn
 
-from database import get_db, create_tables, init_database
+from database import get_db, create_tables, init_database, cleanup_database
 from llm_service import LabelingService
 from review_service import ReviewService
 from config import Config
@@ -251,6 +251,7 @@ async def get_categories(db: Session = Depends(get_db)):
 async def startup_event():
     create_tables()
     init_database()
+    cleanup_database()
 
 if __name__ == "__main__":
     uvicorn.run(
