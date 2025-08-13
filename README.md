@@ -1,6 +1,6 @@
 # Automated Data Labeling Assistant
 
-A powerful, AI-driven system for automatically labeling unstructured text data with human-in-the-loop review capabilities. Built with FastAPI, SQLAlchemy, and **100% FREE AI models** - no API costs required!
+A powerful, AI-driven system for automatically labeling unstructured text data with human-in-the-loop review capabilities. Built with FastAPI, SQLAlchemy, DistilBERT.
 
 ## Features
 
